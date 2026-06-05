@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="A hands-on tool for learning Q-learning and SARSA on a gridworld. Edit the grid, change the settings, and watch the agent work out the shortest path. Made for the LSO Summer School 2026 at IIT Delhi." />
+<meta name="color-scheme" content="light" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="GridWorld RL Lab" />
+<meta property="og:description" content="Learn Q-learning and SARSA by watching an agent find its way across a gridworld. Made for the LSO Summer School 2026 at IIT Delhi." />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'" />
+<title>GridWorld RL Lab | LSO 2026, IIT Delhi</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23002147'/%3E%3Ctext x='16' y='23' font-size='20' font-family='system-ui' fill='%23C8902A' text-anchor='middle'%3EQ%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{--navy:#002147;--gold:#C8902A;--red:#C0392B;--green:#16A34A;
+    --dark:#374151;--bg:#eef2f7;--card:#fff;--ink:#0b1f33;--mut:#5b6b7d}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  header{background:linear-gradient(135deg,var(--navy),#013a73);color:#fff;
+    padding:16px 22px;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+  header h1{margin:0;font-size:20px}
+  header p{margin:4px 0 0;font-size:13px;opacity:.85}
+  header .tag{color:var(--gold);font-weight:700}
+  .wrap{max-width:1240px;margin:16px auto;padding:0 16px;
+    display:grid;grid-template-columns:1.22fr .92fr;gap:16px}
+  @media (max-width:940px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--card);border-radius:14px;padding:15px 17px;
+    box-shadow:0 6px 22px rgba(3,33,71,.08);border:1px solid #e4eaf1}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:0 0 9px}
+  .panels{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:600px){.panels{grid-template-columns:1fr}}
+  canvas{width:100%;height:auto;display:block;border-radius:10px;background:#f5f8fc;
+    touch-action:none}
+  #grid{cursor:crosshair}
+  .cap{margin-top:8px;font-weight:700;font-size:13px;min-height:18px}
+  .legend{font-size:11px;color:var(--mut);margin-top:6px;line-height:1.5}
+  .ctrl{display:flex;align-items:center;gap:10px;margin:10px 0}
+  .ctrl label{width:118px;font-size:13px;font-weight:600;color:var(--navy)}
+  .ctrl .val{width:50px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+  input[type=range]{flex:1;accent-color:var(--gold);height:22px}
+  input[type=range].red{accent-color:var(--red)}
+  input[type=range].green{accent-color:var(--green)}
+  input[type=range].navy{accent-color:var(--navy)}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  button{font:inherit;font-weight:700;border:none;border-radius:10px;padding:9px 14px;
+    cursor:pointer;color:#fff;background:var(--navy);box-shadow:0 3px 0 rgba(0,0,0,.18);
+    transition:transform .05s;font-size:13px}
+  button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.18)}
+  button.ghost{background:#e7edf4;color:var(--navy)}
+  button.gold{background:var(--gold)}
+  button.sm{padding:7px 10px;font-size:12px}
+  .chk{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:13px}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .seg{display:inline-flex;border:1px solid #cdd8e4;border-radius:9px;overflow:hidden}
+  .seg button{background:#f1f5fa;color:var(--navy);box-shadow:none;border-radius:0;
+    padding:7px 11px;font-size:12px}
+  .seg button.on{background:var(--navy);color:#fff}
+  .stat{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:11px;font-size:13px;
+    background:#f3f7fc;border:1px solid #e2eaf3;border-radius:10px;padding:10px 12px}
+  .stat b{font-variant-numeric:tabular-nums}
+  .phase{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff}
+  .td{margin-top:10px;background:#0b1f33;color:#dbe7f5;border-radius:10px;padding:10px 12px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.6;min-height:74px}
+  .td .k{color:var(--gold)} .td .d{color:#7ee0a6} .td .dim{color:#7e93ab}
+  .opt{margin-top:9px;font-size:13px;display:flex;align-items:center;gap:10px}
+  .bar{flex:1;height:10px;background:#e2eaf3;border-radius:6px;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--green));width:0%}
+  #tip{position:fixed;z-index:50;pointer-events:none;display:none;background:#0b1f33;color:#fff;
+    border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 6px 18px rgba(0,0,0,.3);
+    font-family:ui-monospace,Menlo,Consolas,monospace;white-space:pre}
+  .demo{font-size:12px;color:var(--mut);margin-top:11px;line-height:1.6}
+  .demo b{color:var(--navy)}
+  footer{max-width:1240px;margin:6px auto 26px;padding:0 16px;font-size:11px;color:var(--mut)}
+  .editbar{font-size:11px;color:var(--mut);margin-top:6px}
+  /* projector mode */
+  body.proj{font-size:18px}
+  body.proj header h1{font-size:30px} body.proj h2{font-size:15px}
+  body.proj .cap{font-size:20px} body.proj .stat{font-size:18px}
+  body.proj .ctrl label{width:150px;font-size:16px} body.proj .td{font-size:15px}
+  body.proj .wrap{max-width:1500px}
+  /* screen-reader-only live region */
+  .sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  @media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<noscript><p style="padding:14px;margin:0;background:#fde68a;color:#7c2d12;text-align:center;font-family:system-ui">This interactive visualiser needs JavaScript enabled to run.</p></noscript>
+<header>
+  <h1>GridWorld RL Lab <span class="tag">Q-learning and SARSA</span></h1>
+  <p>A hands-on tool for the LSO Summer School 2026 at IIT Delhi. Edit the grid, pick an algorithm, change the settings, and watch the agent find its way from S to G.</p>
+</header>
+
+<div class="wrap">
+  <!-- LEFT: visuals -->
+  <section class="card">
+    <div class="panels">
+      <div>
+        <h2>The world <span style="font-weight:400;text-transform:none;letter-spacing:0">(click a cell to toggle a wall, drag S or G, hover to inspect)</span></h2>
+        <canvas id="grid" width="440" height="440" aria-label="Gridworld; click to toggle walls, drag start or goal"></canvas>
+        <div class="cap" id="cap">Press Play</div>
+        <div class="legend">The blue dot is the agent. The faint line is its current path. The gold dashed line is the shortest route. S is the start, G is the goal, grey is a wall, black is a cliff.</div>
+      </div>
+      <div>
+        <h2>Learned value of each cell</h2>
+        <canvas id="heat" width="440" height="440" aria-label="Learned value heatmap with policy arrows"></canvas>
+        <div class="opt">
+          <span>Optimal&nbsp;<b id="optPct">-</b></span>
+          <span class="bar"><i id="optBar"></i></span>
+        </div>
+        <div class="td" id="tdPanel">The update equation will appear here as it trains.</div>
+      </div>
+    </div>
+    <h2 style="margin-top:14px">Reward per episode</h2>
+    <canvas id="rew" width="860" height="130" aria-label="Reward per episode chart"></canvas>
+  </section>
+
+  <!-- RIGHT: controls -->
+  <section class="card">
+    <h2>Algorithm &amp; world</h2>
+    <div class="row">
+      <span class="seg" id="algoSeg">
+        <button data-algo="qlearning" class="on">Q-learning</button>
+        <button data-algo="sarsa">SARSA</button>
+      </span>
+      <span class="seg" id="gridSeg">
+        <button data-grid="default" class="on">5×5</button>
+        <button data-grid="7">7×7</button>
+        <button data-grid="15">15×15</button>
+        <button data-grid="maze">Maze</button>
+        <button data-grid="cliff">Cliff</button>
+      </span>
+    </div>
+    <div class="editbar">Editing the grid restarts learning, because the old values no longer apply. The Cliff layout shows the difference between Q-learning and SARSA most clearly.</div>
+
+    <h2 style="margin-top:14px">Hyperparameters (live)</h2>
+    <div class="ctrl"><label for="alpha">α learn rate</label>
+      <input id="alpha" class="gold" type="range" min="0.01" max="1" step="0.01" value="0.30"/><span class="val" id="alphaV">0.30</span></div>
+    <div class="ctrl"><label for="gamma">γ discount</label>
+      <input id="gamma" class="gold" type="range" min="0" max="0.99" step="0.01" value="0.95"/><span class="val" id="gammaV">0.95</span></div>
+    <div class="ctrl"><label for="eps">ε explore</label>
+      <input id="eps" class="red" type="range" min="0" max="1" step="0.01" value="1.00"/><span class="val" id="epsV">1.00</span></div>
+    <div class="ctrl"><label for="slip">slip noise</label>
+      <input id="slip" class="navy" type="range" min="0" max="0.5" step="0.01" value="0.00"/><span class="val" id="slipV">0.00</span></div>
+    <div class="ctrl"><label for="speed">speed (steps/s)</label>
+      <input id="speed" class="green" type="range" min="1" max="120" step="1" value="8"/><span class="val" id="speedV">8</span></div>
+    <div class="chk"><input type="checkbox" id="decay" checked/><label for="decay">auto-decay ε each episode</label></div>
+    <div class="chk"><input type="checkbox" id="showOpt" checked/><label for="showOpt">show optimal-path overlay</label></div>
+
+    <h2 style="margin-top:14px">Controls</h2>
+    <div class="btns">
+      <button id="play">Pause</button>
+      <button id="step" class="ghost">Step</button>
+      <button id="reset" class="gold">Reset</button>
+    </div>
+
+    <h2 style="margin-top:14px">Presets &amp; share</h2>
+    <div class="btns">
+      <button class="ghost sm" data-preset="default">Default</button>
+      <button class="ghost sm" data-preset="myopic">Myopic γ=0.5</button>
+      <button class="ghost sm" data-preset="slippery">Slippery</button>
+      <button class="ghost sm" data-preset="aggressive">Aggressive α=0.9</button>
+    </div>
+    <div class="btns" style="margin-top:8px">
+      <button class="ghost sm" id="proj">Projector mode</button>
+      <button class="ghost sm" id="copy">Copy share link</button>
+      <button class="ghost sm" id="png">Save PNG</button>
+    </div>
+
+    <div class="stat">
+      <div>Episode <b id="sEp">0</b></div>
+      <div>Step <b id="sStep">0</b></div>
+      <div>Last steps to goal <b id="sLast">-</b></div>
+      <div>Phase <span class="phase" id="sPhase" style="background:#C0392B">-</span></div>
+      <div>Optimal length <b id="sOpt">-</b></div>
+      <div>Episode reward <b id="sRew">0.0</b></div>
+    </div>
+
+    <div class="demo">
+      <b>How to try it.</b> Press Play and let it wander while exploration is high. Drag the <b>ε</b> slider down to about 0.05 and the agent walks straight to the goal, then keeps repeating the best path. Switch to the <b>Cliff</b> layout to see how <b>Q-learning</b> hugs the dangerous edge while <b>SARSA</b> plays it safe. Click any cell to drop a wall and watch the route change.
+    </div>
+  </section>
+</div>
+
+<div id="tip"></div>
+<p id="sr" class="sr" aria-live="polite" role="status"></p>
+<footer>
+  Built for the LSO Summer School 2026 at the Indian Institute of Technology Delhi, with course material by Prof. Kartik. It uses the same Q-learning method as the <code>qlearning.py</code> handout and runs entirely in your browser, so nothing is sent to a server.
+  <br/><span style="opacity:.8">Orchestrated through Claude by <a href="https://dmj.one" style="color:inherit">dmj.one</a>.</span>
+</footer>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const NAVY="#002147",GOLD="#C8902A",GREEN="#16A34A",DARKC="#374151",REDC="#C0392B";
+const DELTA=[[-1,0],[1,0],[0,-1],[0,1]], ARROW=["↑","↓","←","→"], N_ACTIONS=4;
+const MAX_STEPS=400;
+
+// =====================================================================
+//  WORLD STATE (mutable)
+// =====================================================================
+let ROWS,COLS,START,GOAL,walls,cliffs,GOAL_REWARD,STEP_PENALTY,CLIFF_PENALTY;
+let slipProb=0, curRC=[0,0];
+
+function key(r,c){return r+","+c;}
+const isWall =(r,c)=>walls.has(key(r,c));
+const isCliff=(r,c)=>cliffs.has(key(r,c));
+const inBounds=(r,c)=>r>=0&&r<ROWS&&c>=0&&c<COLS;
+const passable=(r,c)=>inBounds(r,c)&&!isWall(r,c);   // can stand here (cliffs are enterable)
+const rc2s=(r,c)=>r*COLS+c;
+const s2rc=s=>[Math.floor(s/COLS),s%COLS];
+
+function loadWorld(kind){
+  if(!["default","7","15","maze","cliff"].includes(kind)) kind="default";  // harden untrusted URL input
+  currentGrid=kind;
+  walls=new Set(); cliffs=new Set();
+  GOAL_REWARD=10; STEP_PENALTY=-0.1; CLIFF_PENALTY=-100;
+  if(kind==="default"){ ROWS=COLS=5; START=[0,0]; GOAL=[4,4];
+    ["1,1","1,2","2,1","3,3","4,3"].forEach(k=>walls.add(k)); }
+  else if(kind==="7"){ ROWS=COLS=7; START=[0,0]; GOAL=[6,6];
+    ["1,1","1,2","2,1","3,3","3,4","4,3","5,1","5,5","2,5"].forEach(k=>walls.add(k)); }
+  else if(kind==="15"){ ROWS=COLS=15; START=[0,0]; GOAL=[14,14];
+    makeRandomWalls(0.22); }
+  else if(kind==="maze"){ ROWS=COLS=15; START=[0,0]; GOAL=[14,14];
+    makeSerpentine(); }
+  else if(kind==="cliff"){ ROWS=4; COLS=10; START=[3,0]; GOAL=[3,9];
+    STEP_PENALTY=-1;
+    for(let c=1;c<9;c++) cliffs.add(key(3,c)); }
+  curRC=START.slice();
+  ensureSolvable();
+}
+
+// random walls but guarantee a clear L-corridor (top row + right column) so it's solvable
+function makeRandomWalls(p){
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if((r===0)||(c===COLS-1)) continue;                // keep corridor clear
+    if((r===START[0]&&c===START[1])||(r===GOAL[0]&&c===GOAL[1])) continue;
+    if(seededRand()<p) walls.add(key(r,c));
+  }
+}
+function makeSerpentine(){
+  for(let r=1;r<ROWS-1;r+=2){
+    const gap=(r%4===1)?COLS-1:0;                      // alternating gap side
+    for(let c=0;c<COLS;c++) if(c!==gap) walls.add(key(r,c));
+  }
+  walls.delete(key(START[0],START[1])); walls.delete(key(GOAL[0],GOAL[1]));
+}
+// tiny deterministic PRNG so "15×15" looks the same each load
+let _seed=1234567;
+function seededRand(){_seed=(_seed*1103515245+12345)&0x7fffffff;return _seed/0x7fffffff;}
+
+function ensureSolvable(){
+  if(!bfsPath()){ // clear the L corridor as a fallback
+    for(let c=0;c<COLS;c++) walls.delete(key(0,c));
+    for(let r=0;r<ROWS;r++) walls.delete(key(r,COLS-1));
+  }
+}
+
+// =====================================================================
+//  ENV  (gym-style)
+// =====================================================================
+function envReset(){curRC=START.slice();return rc2s(curRC[0],curRC[1]);}
+function envStep(a){
+  if(slipProb>0&&Math.random()<slipProb) a=(Math.random()*N_ACTIONS)|0;
+  const [dr,dc]=DELTA[a]; let [r,c]=curRC, nr=r+dr, nc=c+dc;
+  if(passable(nr,nc)) {r=nr;c=nc;}
+  if(isCliff(r,c)){ curRC=START.slice(); return [rc2s(START[0],START[1]),CLIFF_PENALTY,false]; }
+  curRC=[r,c];
+  const done=(r===GOAL[0]&&c===GOAL[1]);
+  return [rc2s(r,c), done?GOAL_REWARD:STEP_PENALTY, done];
+}
+
+// =====================================================================
+//  OPTIMAL PATH (BFS over passable, non-cliff cells)
+// =====================================================================
+let optimalPath=[], optimalLen=Infinity;
+function bfsPath(){
+  const blocked=(r,c)=>!passable(r,c)||isCliff(r,c);
+  if(blocked(GOAL[0],GOAL[1])) return null;
+  const q=[START.slice()], prev=new Map(), seen=new Set([key(START[0],START[1])]);
+  while(q.length){
+    const [r,c]=q.shift();
+    if(r===GOAL[0]&&c===GOAL[1]){
+      const path=[[r,c]]; let k=key(r,c);
+      while(prev.has(k)){ const p=prev.get(k); path.unshift(p); k=key(p[0],p[1]); }
+      return path;
+    }
+    for(const [dr,dc] of DELTA){ const nr=r+dr,nc=c+dc,nk=key(nr,nc);
+      if(inBounds(nr,nc)&&!blocked(nr,nc)&&!seen.has(nk)){ seen.add(nk); prev.set(nk,[r,c]); q.push([nr,nc]); } }
+  }
+  return null;
+}
+function recomputeOptimal(){
+  const p=bfsPath(); optimalPath=p||[]; optimalLen=p?p.length-1:Infinity;
+}
+
+// =====================================================================
+//  Q-LEARNING / SARSA
+// =====================================================================
+let Q, s, episode, stepInEp, epReward, trail, rewardHist, lastSteps;
+let algorithm="qlearning", pendingAction=null;
+let mode="train", scPath=null, scIdx=0, scHold=0;
+let lastTD=null, flashCell=null, flashA=0;
+
+const rowMax=a=>{let m=a[0];for(let i=1;i<a.length;i++)if(a[i]>m)m=a[i];return m;};
+function argmaxRandom(a){const m=rowMax(a),t=[];for(let i=0;i<a.length;i++)if(a[i]===m)t.push(i);return t[(Math.random()*t.length)|0];}
+function argmaxFirst(a){let b=0;for(let i=1;i<a.length;i++)if(a[i]>a[b])b=i;return b;}
+function epsGreedy(state,eps){return (Math.random()<eps)?(Math.random()*N_ACTIONS)|0:argmaxRandom(Q[state]);}
+
+function greedyRollout(){
+  let r=START[0],c=START[1]; const path=[[r,c]], seen=new Set([key(r,c)]);
+  for(let k=0;k<ROWS*COLS*2;k++){
+    const a=argmaxFirst(Q[rc2s(r,c)]); const [dr,dc]=DELTA[a]; let nr=r+dr,nc=c+dc;
+    if(!passable(nr,nc)){nr=r;nc=c;}
+    if(isCliff(nr,nc)) return null;
+    r=nr;c=nc; path.push([r,c]);
+    if(r===GOAL[0]&&c===GOAL[1]) return path;
+    if(seen.has(key(r,c))) return null;
+    seen.add(key(r,c));
+  }
+  return null;
+}
+
+function resetLearning(){
+  Q=Array.from({length:ROWS*COLS},()=>[0,0,0,0]);
+  s=envReset(); episode=0; stepInEp=0; epReward=0;
+  trail=[curRC.slice()]; rewardHist=[]; lastSteps=null;
+  pendingAction=null; mode="train"; scPath=null; scIdx=0; scHold=0;
+  lastTD=null; flashCell=null;
+}
+
+function trainStep(alpha,gamma,epsilon){
+  let a;
+  if(algorithm==="sarsa"){ if(pendingAction===null) pendingAction=epsGreedy(s,epsilon); a=pendingAction; }
+  else a=epsGreedy(s,epsilon);
+
+  const cell=s2rc(s);
+  const [sNext,r,done]=envStep(a);
+  epReward+=r; stepInEp++;
+
+  let target, qNextLabel;
+  if(algorithm==="sarsa"){
+    if(done){ target=r; qNextLabel=0; }
+    else { const an=epsGreedy(sNext,epsilon); qNextLabel=Q[sNext][an]; target=r+gamma*qNextLabel; pendingAction=an; }
+  }else{
+    qNextLabel=done?0:rowMax(Q[sNext]); target=r+gamma*qNextLabel;
+  }
+  const oldQ=Q[s][a]; Q[s][a]+=alpha*(target-oldQ);
+  lastTD={cell,a,r,oldQ,newQ:Q[s][a],delta:target-oldQ,alpha,gamma,qNext:qNextLabel,done,algo:algorithm};
+  flashCell=cell; flashA=a;
+
+  s=sNext; trail.push(curRC.slice());
+  const ended=done||stepInEp>=MAX_STEPS;
+  if(ended){
+    rewardHist.push(epReward);
+    lastSteps=done?stepInEp:null;
+    episode++; s=envReset(); stepInEp=0; epReward=0; trail=[curRC.slice()]; pendingAction=null;
+  }
+  return ended;
+}
+
+function enterShowcase(path){ mode="showcase"; scPath=path; scIdx=0; scHold=0;
+  curRC=path[0].slice(); trail=[curRC.slice()]; }
+function showcaseStep(){
+  if(!scPath) return;
+  if(scHold>0){ scHold--; if(scHold===0){scIdx=0;curRC=scPath[0].slice();trail=[curRC.slice()];} return; }
+  if(scIdx<scPath.length-1){ scIdx++; curRC=scPath[scIdx].slice();
+    trail=scPath.slice(0,scIdx+1).map(p=>p.slice()); if(scIdx===scPath.length-1) scHold=6; }
+}
+
+// =====================================================================
+//  RENDERING
+// =====================================================================
+const gridC=$("grid"),gx=gridC.getContext("2d");
+const heatC=$("heat"),hx=heatC.getContext("2d");
+const rewC=$("rew"),rx=rewC.getContext("2d");
+let CELL=88;
+function sizeCanvases(){
+  CELL=Math.floor(440/Math.max(ROWS,COLS));
+  for(const cv of [gridC,heatC]){ cv.width=COLS*CELL; cv.height=ROWS*CELL; }
+}
+const STOPS=[[255,255,204],[254,217,118],[253,141,60],[240,59,32],[189,0,38]];
+function ylorrd(t){t=Math.max(0,Math.min(1,t));const x=t*(STOPS.length-1);
+  const i=Math.min(STOPS.length-2,Math.floor(x)),f=x-i,a=STOPS[i],b=STOPS[i+1];
+  const m=k=>Math.round(a[k]+(b[k]-a[k])*f);return `rgb(${m(0)},${m(1)},${m(2)})`;}
+const showArrows=()=>COLS<=9&&ROWS<=9;
+
+function drawGrid(){
+  gx.clearRect(0,0,gridC.width,gridC.height);
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    gx.fillStyle=isCliff(r,c)?"#111827":isWall(r,c)?DARKC:"#EEF2FF";
+    gx.fillRect(c*CELL,r*CELL,CELL-2,CELL-2);
+  }
+  gx.textAlign="center";gx.textBaseline="middle";
+  const f=Math.max(11,CELL*0.5);
+  gx.font=`bold ${f}px system-ui`;
+  gx.fillStyle=GOLD; gx.fillText("S",(START[1]+.5)*CELL,(START[0]+.5)*CELL);
+  gx.fillStyle=GREEN;gx.fillText("G",(GOAL[1]+.5)*CELL,(GOAL[0]+.5)*CELL);
+  // optimal overlay (gold dashed)
+  if($("showOpt").checked && optimalPath.length>1){
+    gx.strokeStyle="rgba(200,144,42,.9)";gx.lineWidth=Math.max(2,CELL*0.07);gx.setLineDash([CELL*0.25,CELL*0.18]);
+    gx.beginPath();gx.moveTo((optimalPath[0][1]+.5)*CELL,(optimalPath[0][0]+.5)*CELL);
+    for(const [r,c] of optimalPath) gx.lineTo((c+.5)*CELL,(r+.5)*CELL);
+    gx.stroke();gx.setLineDash([]);
+  }
+  // agent trail
+  if(trail.length>1){gx.strokeStyle="rgba(0,33,71,.35)";gx.lineWidth=Math.max(2,CELL*0.06);
+    gx.beginPath();gx.moveTo((trail[0][1]+.5)*CELL,(trail[0][0]+.5)*CELL);
+    for(const [r,c] of trail) gx.lineTo((c+.5)*CELL,(r+.5)*CELL);gx.stroke();}
+  // agent
+  const [ar,ac]=curRC; gx.fillStyle=NAVY;gx.beginPath();
+  gx.arc((ac+.5)*CELL,(ar+.5)*CELL,CELL*0.28,0,Math.PI*2);gx.fill();
+}
+function drawHeat(){
+  hx.clearRect(0,0,heatC.width,heatC.height);
+  hx.textAlign="center";hx.textBaseline="middle";
+  const f=Math.max(9,CELL*0.45);
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(isWall(r,c)){hx.fillStyle=DARKC;hx.fillRect(c*CELL,r*CELL,CELL-2,CELL-2);continue;}
+    if(isCliff(r,c)){hx.fillStyle="#111827";hx.fillRect(c*CELL,r*CELL,CELL-2,CELL-2);continue;}
+    const v=rowMax(Q[rc2s(r,c)]);
+    hx.fillStyle=ylorrd(v/GOAL_REWARD);hx.fillRect(c*CELL,r*CELL,CELL-2,CELL-2);
+    hx.fillStyle=NAVY;
+    if(r===GOAL[0]&&c===GOAL[1]){hx.font=`bold ${f}px system-ui`;hx.fillText("G",(c+.5)*CELL,(r+.5)*CELL);}
+    else if(showArrows()){hx.font=`${f}px system-ui`;hx.fillText(ARROW[argmaxFirst(Q[rc2s(r,c)])],(c+.5)*CELL,(r+.5)*CELL);}
+  }
+  // flash the just-updated cell
+  if(flashCell){const [r,c]=flashCell;hx.strokeStyle="#0b1f33";hx.lineWidth=Math.max(2,CELL*0.08);
+    hx.strokeRect(c*CELL+2,r*CELL+2,CELL-6,CELL-6);}
+}
+function drawRew(){
+  const W=rewC.width,H=rewC.height,pad=24;rx.clearRect(0,0,W,H);
+  const lo=Math.min(-12,...(rewardHist.length?rewardHist:[0]))-1, hi=GOAL_REWARD+1;
+  const yOf=v=>(H-pad)-((v-lo)/(hi-lo))*(H-2*pad);
+  rx.strokeStyle="#cdd8e4";rx.lineWidth=1;rx.beginPath();rx.moveTo(pad,H-pad);rx.lineTo(W-6,H-pad);rx.stroke();
+  rx.strokeStyle="rgba(22,163,74,.6)";rx.setLineDash([5,4]);rx.beginPath();
+  rx.moveTo(pad,yOf(GOAL_REWARD));rx.lineTo(W-6,yOf(GOAL_REWARD));rx.stroke();rx.setLineDash([]);
+  if(rewardHist.length>1){const n=rewardHist.length,xspan=Math.max(50,n),xOf=i=>pad+(i/(xspan-1))*(W-pad-6);
+    rx.strokeStyle=NAVY;rx.lineWidth=1.4;rx.beginPath();
+    for(let i=0;i<n;i++){const X=xOf(i),Y=yOf(rewardHist[i]);i?rx.lineTo(X,Y):rx.moveTo(X,Y);}rx.stroke();}
+  rx.fillStyle="#5b6b7d";rx.font="11px system-ui";rx.textAlign="left";
+  rx.fillText("+"+GOAL_REWARD,2,yOf(GOAL_REWARD));rx.fillText("0",8,yOf(0));
+}
+
+function phaseOf(eps){if(eps>0.5)return["EXPLORING",REDC];if(eps>0.15)return["BALANCING",GOLD];return["EXPLOITING",GREEN];}
+function fmt(x){return (x>=0?"+":"")+x.toFixed(2);}
+function updateTD(){
+  const p=$("tdPanel");
+  if(!lastTD){p.textContent="The update equation will appear here as it trains.";return;}
+  const t=lastTD,[r,c]=t.cell;
+  const nextTerm=t.algo==="sarsa"?`Q(s',a')=${t.qNext.toFixed(2)}`:`maxQ'=${t.qNext.toFixed(2)}`;
+  p.innerHTML=
+    `<span class="dim">${t.algo.toUpperCase()}, s=(${r},${c}) a=${ARROW[t.a]} r=${t.r.toFixed(2)} ${t.done?", goal reached":""}</span>\n`+
+    `Q <span class="k">&lt;-</span> ${t.oldQ.toFixed(2)} + ${t.alpha.toFixed(2)}×[ ${t.r.toFixed(2)} + ${t.gamma.toFixed(2)}×${t.qNext.toFixed(2)} - ${t.oldQ.toFixed(2)} ]\n`+
+    `&nbsp;&nbsp;= <b>${t.newQ.toFixed(2)}</b>   <span class="d">δ = ${fmt(t.delta)}</span>   <span class="dim">(${nextTerm})</span>`;
+}
+function updateOptimal(){
+  let pct="-",frac=0;
+  const g=greedyRollout();
+  if(optimalLen!==Infinity && g){ const gl=g.length-1; pct=Math.round(100*optimalLen/Math.max(gl,1))+"%"; frac=Math.min(1,optimalLen/Math.max(gl,1)); }
+  else if(optimalLen!==Infinity){ pct="0%"; frac=0; }
+  $("optPct").textContent=pct; $("optBar").style.width=(frac*100)+"%";
+  $("sOpt").textContent=optimalLen===Infinity?"-":optimalLen+" steps";
+}
+
+// Screen-reader announcements: throttled so we don't flood (only on phase/mode/episode-bucket change)
+let srLast="";
+function announce(label){
+  const k=mode+"|"+label+"|"+algorithm+"|"+Math.floor(episode/10);
+  if(k===srLast)return; srLast=k;
+  $("sr").textContent = mode==="showcase"
+    ? `Converged. Replaying the optimal ${scPath?scPath.length-1:""}-step path; training stopped.`
+    : `${algorithm==="sarsa"?"SARSA":"Q-learning"}, episode ${episode}, ${label.toLowerCase()} phase.`;
+}
+let optTick=0;
+function refresh(){
+  drawGrid();drawHeat();drawRew();updateTD();
+  if((optTick++ &7)===0) updateOptimal();      // optimal recompute is heavier; throttle
+  if(mode==="showcase"){
+    announce("OPTIMAL");
+    const opt=scPath.length-1;
+    $("cap").textContent=`Done. The agent learned the best ${opt}-step path and is now repeating it. Training has stopped.`;
+    $("cap").style.color=GREEN;
+    $("sEp").textContent=episode;$("sStep").textContent=scIdx;
+    $("sLast").textContent=opt;$("sRew").textContent=(GOAL_REWARD+(opt-1)*STEP_PENALTY).toFixed(1);
+    const p=$("sPhase");p.textContent="OPTIMAL";p.style.background=GREEN;return;
+  }
+  const eps=parseFloat(I.eps.value),[ph,col]=phaseOf(eps);
+  announce(ph);
+  $("cap").textContent=`${algorithm==="sarsa"?"SARSA":"Q-learning"}. Episode ${episode+1}, step ${stepInEp}. ${ph==="EXPLORING"?"Mostly random moves.":ph==="BALANCING"?"A mix of random and learned moves.":"Following what it learned."}`;
+  $("cap").style.color=col;
+  $("sEp").textContent=episode;$("sStep").textContent=stepInEp;
+  $("sLast").textContent=lastSteps===null?"-":lastSteps;$("sRew").textContent=epReward.toFixed(1);
+  const p=$("sPhase");p.textContent=ph;p.style.background=col;
+}
+
+// =====================================================================
+//  CONTROLS
+// =====================================================================
+const I={alpha:$("alpha"),gamma:$("gamma"),eps:$("eps"),slip:$("slip"),speed:$("speed")};
+function bindVal(inp,out,fmt){const f=()=>out.textContent=fmt(parseFloat(inp.value));inp.addEventListener("input",f);f();}
+bindVal(I.alpha,$("alphaV"),v=>v.toFixed(2));bindVal(I.gamma,$("gammaV"),v=>v.toFixed(2));
+bindVal(I.eps,$("epsV"),v=>v.toFixed(2));bindVal(I.slip,$("slipV"),v=>v.toFixed(2));
+bindVal(I.speed,$("speedV"),v=>String(v|0));
+
+let paused=false,settingEps=false;
+I.eps.addEventListener("input",()=>{if(!settingEps&&mode==="showcase"){mode="train";scPath=null;}});
+[I.alpha,I.gamma,I.slip].forEach(inp=>inp.addEventListener("input",()=>{if(mode==="showcase"){mode="train";scPath=null;}}));
+
+$("play").addEventListener("click",()=>{paused=!paused;$("play").textContent=paused?"Play":"Pause";});
+$("reset").addEventListener("click",()=>{resetLearning();refresh();});
+$("step").addEventListener("click",()=>{mode="train";doTrainStep();refresh();});
+
+// algorithm + grid segmented controls
+$("algoSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  algorithm=b.dataset.algo;[...$("algoSeg").children].forEach(x=>x.classList.toggle("on",x===b));
+  resetLearning();refresh();});
+$("gridSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  [...$("gridSeg").children].forEach(x=>x.classList.toggle("on",x===b));
+  loadWorld(b.dataset.grid);sizeCanvases();recomputeOptimal();resetLearning();refresh();});
+
+// presets
+document.querySelectorAll("[data-preset]").forEach(b=>b.addEventListener("click",()=>applyPreset(b.dataset.preset)));
+function setSlider(inp,v){inp.value=v;inp.dispatchEvent(new Event("input"));}
+function applyPreset(name){
+  if(name==="default"){setSlider(I.alpha,0.3);setSlider(I.gamma,0.95);setSlider(I.eps,1);setSlider(I.slip,0);}
+  else if(name==="myopic"){setSlider(I.gamma,0.5);}
+  else if(name==="slippery"){setSlider(I.slip,0.2);}
+  else if(name==="aggressive"){setSlider(I.alpha,0.9);}
+  resetLearning();refresh();
+}
+
+// projector / share / png
+$("proj").addEventListener("click",()=>document.body.classList.toggle("proj"));
+$("copy").addEventListener("click",async()=>{
+  const u=new URL(location.href);u.search=new URLSearchParams({
+    a:I.alpha.value,g:I.gamma.value,e:I.eps.value,s:I.slip.value,sp:I.speed.value,
+    algo:algorithm,grid:currentGrid}).toString();
+  history.replaceState(null,"",u);
+  try{await navigator.clipboard.writeText(u.href);$("copy").textContent="Copied!";
+    setTimeout(()=>$("copy").textContent="Copy share link",1200);}catch(_){$("copy").textContent="Link in URL bar";}
+});
+$("png").addEventListener("click",()=>{
+  const gap=16,W=gridC.width+heatC.width+gap,H=Math.max(gridC.height,heatC.height)+30;
+  const o=document.createElement("canvas");o.width=W;o.height=H;const ox=o.getContext("2d");
+  ox.fillStyle="#fff";ox.fillRect(0,0,W,H);ox.fillStyle=NAVY;ox.font="bold 16px system-ui";
+  ox.fillText("GridWorld RL Lab, LSO 2026, IIT Delhi",4,20);
+  ox.drawImage(gridC,0,30);ox.drawImage(heatC,gridC.width+gap,30);
+  const a=document.createElement("a");a.download="qlearning_snapshot.png";a.href=o.toDataURL("image/png");a.click();
+});
+
+// =====================================================================
+//  WORLD EDITING  (click=wall, drag S/G, hover=inspect)
+// =====================================================================
+let dragging=null;
+function cellFromEvent(ev){
+  const rect=gridC.getBoundingClientRect();
+  const c=Math.floor((ev.clientX-rect.left)/rect.width*COLS);
+  const r=Math.floor((ev.clientY-rect.top)/rect.height*ROWS);
+  return inBounds(r,c)?[r,c]:null;
+}
+gridC.addEventListener("pointerdown",ev=>{
+  const cell=cellFromEvent(ev);if(!cell)return;const[r,c]=cell;
+  if(r===START[0]&&c===START[1]){dragging="S";return;}
+  if(r===GOAL[0]&&c===GOAL[1]){dragging="G";return;}
+  if(isCliff(r,c))return;
+  walls.has(key(r,c))?walls.delete(key(r,c)):walls.add(key(r,c));
+  ensureSolvable();recomputeOptimal();resetLearning();refresh();
+});
+gridC.addEventListener("pointermove",ev=>{
+  const cell=cellFromEvent(ev);
+  // inspector tooltip
+  if(cell){const[r,c]=cell;showTip(ev,r,c);}else hideTip();
+  // dragging S/G
+  if(dragging&&cell){const[r,c]=cell;
+    if(!isWall(r,c)&&!isCliff(r,c)){
+      if(dragging==="S"&&!(r===GOAL[0]&&c===GOAL[1]))START=[r,c];
+      if(dragging==="G"&&!(r===START[0]&&c===START[1]))GOAL=[r,c];
+      recomputeOptimal();}
+  }
+});
+window.addEventListener("pointerup",()=>{if(dragging){dragging=null;resetLearning();refresh();}});
+gridC.addEventListener("pointerleave",hideTip);
+
+function showTip(ev,r,c){
+  if(isWall(r,c)||isCliff(r,c)){hideTip();return;}
+  const q=Q[rc2s(r,c)],best=argmaxFirst(q);
+  let txt=`state (${r},${c})  s=${rc2s(r,c)}\n`;
+  for(let a=0;a<4;a++) txt+=`  ${ARROW[a]} ${q[a].toFixed(2)}${a===best?"  ◀ best":""}\n`;
+  const t=$("tip");t.textContent=txt;t.style.display="block";
+  t.style.left=(ev.clientX+14)+"px";t.style.top=(ev.clientY+14)+"px";
+}
+function hideTip(){$("tip").style.display="none";}
+
+// =====================================================================
+//  TRAIN STEP WRAPPER + LOOP
+// =====================================================================
+function doTrainStep(){
+  slipProb=parseFloat(I.slip.value);
+  const ended=trainStep(parseFloat(I.alpha.value),parseFloat(I.gamma.value),parseFloat(I.eps.value));
+  if(ended){
+    if($("decay").checked){settingEps=true;const ne=Math.max(0.05,parseFloat(I.eps.value)*0.995);
+      I.eps.value=ne.toFixed(2);$("epsV").textContent=ne.toFixed(2);settingEps=false;}
+    if(mode==="train"&&parseFloat(I.eps.value)<=0.07){
+      const path=greedyRollout();
+      if(path&&(path.length-1)<=optimalLen) enterShowcase(path);
+    }
+  }
+}
+let last=performance.now(),acc=0;
+function loop(now){
+  const dt=now-last;last=now;
+  if(!paused){acc+=dt;const stepMs=1000/Math.max(1,parseFloat(I.speed.value));let budget=16;
+    while(acc>=stepMs&&budget-->0){ if(mode==="train")doTrainStep();else showcaseStep(); acc-=stepMs; }}
+  refresh();requestAnimationFrame(loop);
+}
+
+// =====================================================================
+//  BOOT (apply URL params if present)
+// =====================================================================
+let currentGrid="default";
+(function boot(){
+  const p=new URLSearchParams(location.search);
+  if(p.get("algo")==="sarsa"){algorithm="sarsa";
+    [...$("algoSeg").children].forEach(x=>x.classList.toggle("on",x.dataset.algo==="sarsa"));}
+  loadWorld(p.get("grid")||"default");          // normalizes invalid input + sets currentGrid
+  [...$("gridSeg").children].forEach(x=>x.classList.toggle("on",x.dataset.grid===currentGrid));
+  sizeCanvases();recomputeOptimal();
+  const numOk=v=>v!==null&&v!==""&&isFinite(parseFloat(v));
+  const set=(inp,v)=>{if(numOk(v)){inp.value=v;inp.dispatchEvent(new Event("input"));}};
+  set(I.alpha,p.get("a"));set(I.gamma,p.get("g"));set(I.eps,p.get("e"));
+  set(I.slip,p.get("s"));set(I.speed,p.get("sp"));
+  // respect users who prefer reduced motion: start paused, let them opt in
+  if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+    paused=true;$("play").textContent="Play";}
+  resetLearning();refresh();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
