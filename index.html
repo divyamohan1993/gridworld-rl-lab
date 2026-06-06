@@ -517,9 +517,10 @@ function updateEqPanel(){
   const target=r+g*boot, upd=a*d;
   const eq=(cls,k,val,txt)=>{const ch=eqPrev[k]!==undefined&&Math.abs(eqPrev[k]-val)>1e-9;eqPrev[k]=val;
     return `<span class="term ${cls}${ch?" pulse":""}">${txt}</span>`;};
+  const par=x=>x<0?`(${fnum(x)})`:fnum(x);          // parenthesise negatives so signs read cleanly
   $("eqNum").innerHTML=
-    `<div>δ = ( ${eq("t-r","r",r,fmt(r))} + <span class="t-g">${fnum(g)}</span> × ${eq("t-boot","b",boot,fnum(boot))} ) - ${eq("t-old","o",old,fnum(old))} = ${eq("t-delta","d",d,fmt(d))}</div>`+
-    `<div><i>Q</i>(<i>s</i>,<i>a</i>): ${fnum(old)} &larr; ${fnum(old)} + <span class="t-a">${fnum(a)}</span> × ${eq("t-delta","d2",d,fmt(d))} = ${eq("t-new","n",nw,fnum(nw))}</div>`;
+    `<div>δ = ( ${eq("t-r","r",r,fmt(r))} + <span class="t-g">${fnum(g)}</span> × ${eq("t-boot","b",boot,par(boot))} ) - ${eq("t-old","o",old,par(old))} = ${eq("t-delta","d",d,fmt(d))}</div>`+
+    `<div><i>Q</i>(<i>s</i>,<i>a</i>): ${fnum(old)} &larr; ${fnum(old)} + <span class="t-a">${fnum(a)}</span> × ${eq("t-delta","d2",d,par(d))} = ${eq("t-new","n",nw,fnum(nw))}</div>`;
   const [cr,cc]=t.cell;
   const bootName=t.algo==="sarsa"?"Q(s',a'), sampled next":"max Q(s',a), greedy next";
   const rows=[
