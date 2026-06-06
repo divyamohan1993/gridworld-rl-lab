@@ -64,6 +64,29 @@
   .td{margin-top:10px;background:#0b1f33;color:#dbe7f5;border-radius:10px;padding:10px 12px;
     font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.6;min-height:74px}
   .td .k{color:var(--gold)} .td .d{color:#7ee0a6} .td .dim{color:#7e93ab}
+  /* update-rule lab */
+  .eqlab{margin-top:14px;background:#fbfdff;border:1px solid #e2eaf3;border-radius:12px;padding:12px 14px}
+  .eq{font-family:Georgia,"Cambria Math",serif;text-align:center;line-height:2.1;overflow-x:auto}
+  .eq.sym{font-size:18px} .eq.num{font-size:16px;margin-top:2px}
+  .eq i{font-style:italic} .eq sub{font-size:.68em;vertical-align:-.25em}
+  .term{padding:0 4px;border-radius:5px}
+  .t-r{color:#16A34A}.t-g{color:#0E7C86}.t-boot{color:#7C3AED}.t-a{color:#C8902A}
+  .t-old{color:#475569}.t-delta{color:#C0392B;font-weight:700}.t-new{color:#002147;font-weight:700}
+  @keyframes eqpulse{from{background:rgba(200,144,42,.5)}to{background:transparent}}
+  .pulse{animation:eqpulse .5s ease-out}
+  .eqrow{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-top:12px;align-items:center}
+  @media (max-width:600px){.eqrow{grid-template-columns:1fr}}
+  table.legend-eq{width:100%;border-collapse:collapse;font-size:12px}
+  table.legend-eq td{padding:3px 6px;border-bottom:1px solid #eef2f7}
+  table.legend-eq td.lv{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
+  .sw-t-r{background:#16A34A}.sw-t-g{background:#0E7C86}.sw-t-boot{background:#7C3AED}
+  .sw-t-a{background:#C8902A}.sw-t-old{background:#475569}.sw-t-delta{background:#C0392B}.sw-t-new{background:#002147}
+  #tderr{width:100%;height:96px;background:#fff;border:1px solid #e2eaf3;border-radius:8px}
+  .tderr-cap{font-size:11px;color:#5b6b7d;margin-top:5px;text-align:center}
+  .eqnote{font-size:12px;color:#41506a;margin-top:12px;line-height:1.6;background:#f3f7fc;
+    border-left:3px solid var(--gold);padding:8px 12px;border-radius:6px}
+  .eqnote b{color:#002147} .eqnote i{font-style:italic}
   .opt{margin-top:9px;font-size:13px;display:flex;align-items:center;gap:10px}
   .bar{flex:1;height:10px;background:#e2eaf3;border-radius:6px;overflow:hidden}
   .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--green));width:0%}
@@ -110,9 +133,23 @@
           <span>Optimal&nbsp;<b id="optPct">-</b></span>
           <span class="bar"><i id="optBar"></i></span>
         </div>
-        <div class="td" id="tdPanel">The update equation will appear here as it trains.</div>
       </div>
     </div>
+
+    <div class="eqlab">
+      <h2>The update rule, live</h2>
+      <div class="eq sym" id="eqSym"></div>
+      <div class="eq num" id="eqNum">The equation will fill in with live values as it trains.</div>
+      <div class="eqrow">
+        <table class="legend-eq"><tbody id="eqLegend"></tbody></table>
+        <div>
+          <canvas id="tderr" width="430" height="96" aria-label="TD error over recent updates"></canvas>
+          <div class="tderr-cap" id="tderrCap">TD error per update</div>
+        </div>
+      </div>
+      <div class="eqnote" id="eqNote"></div>
+    </div>
+
     <h2 style="margin-top:14px">Reward per episode</h2>
     <canvas id="rew" width="860" height="130" aria-label="Reward per episode chart"></canvas>
   </section>
@@ -303,6 +340,7 @@ let Q, s, episode, stepInEp, epReward, trail, rewardHist, lastSteps;
 let algorithm="qlearning", pendingAction=null;
 let mode="train", scPath=null, scIdx=0, scHold=0;
 let lastTD=null, flashCell=null, flashA=0;
+let tdHistory=[], eqPrev={};   // recent TD errors (for the convergence trace) + last shown values
 // Exploration is held here at full precision, not in the slider (whose 0.01 step
 // would freeze the decay). lock-on watches whether the greedy path has settled.
 let curEps=1.0, lastGreedySig="", stableCount=0;
@@ -332,7 +370,7 @@ function resetLearning(){
   s=envReset(); episode=0; stepInEp=0; epReward=0;
   trail=[curRC.slice()]; rewardHist=[]; lastSteps=null;
   pendingAction=null; mode="train"; scPath=null; scIdx=0; scHold=0;
-  lastTD=null; flashCell=null;
+  lastTD=null; flashCell=null; tdHistory=[]; eqPrev={};
   lastGreedySig=""; stableCount=0;
   // a fresh start explores fully again; sync the slider without firing its handler
   curEps=1.0; settingEps=true; I.eps.value="1"; $("epsV").textContent="1.00"; settingEps=false;
@@ -357,6 +395,7 @@ function trainStep(alpha,gamma,epsilon){
   const oldQ=Q[s][a]; Q[s][a]+=alpha*(target-oldQ);
   lastTD={cell,a,r,oldQ,newQ:Q[s][a],delta:target-oldQ,alpha,gamma,qNext:qNextLabel,done,algo:algorithm};
   flashCell=cell; flashA=a;
+  tdHistory.push(lastTD.delta); if(tdHistory.length>400) tdHistory.shift();
 
   s=sNext; trail.push(curRC.slice());
   const ended=done||stepInEp>=MAX_STEPS;
@@ -453,15 +492,66 @@ function drawRew(){
 
 function phaseOf(eps){if(eps>0.5)return["EXPLORING",REDC];if(eps>0.15)return["BALANCING",GOLD];return["EXPLOITING",GREEN];}
 function fmt(x){return (x>=0?"+":"")+x.toFixed(2);}
-function updateTD(){
-  const p=$("tdPanel");
-  if(!lastTD){p.textContent="The update equation will appear here as it trains.";return;}
-  const t=lastTD,[r,c]=t.cell;
-  const nextTerm=t.algo==="sarsa"?`Q(s',a')=${t.qNext.toFixed(2)}`:`maxQ'=${t.qNext.toFixed(2)}`;
-  p.innerHTML=
-    `<span class="dim">${t.algo.toUpperCase()}, s=(${r},${c}) a=${ARROW[t.a]} r=${t.r.toFixed(2)} ${t.done?", goal reached":""}</span>\n`+
-    `Q <span class="k">&lt;-</span> ${t.oldQ.toFixed(2)} + ${t.alpha.toFixed(2)}×[ ${t.r.toFixed(2)} + ${t.gamma.toFixed(2)}×${t.qNext.toFixed(2)} - ${t.oldQ.toFixed(2)} ]\n`+
-    `&nbsp;&nbsp;= <b>${t.newQ.toFixed(2)}</b>   <span class="d">δ = ${fmt(t.delta)}</span>   <span class="dim">(${nextTerm})</span>`;
+function fnum(x){return x.toFixed(2);}
+
+// Build the symbolic update rule once; re-run when the algorithm changes.
+function renderEqSymbolic(){
+  const off=algorithm!=="sarsa";
+  const boot=off
+    ? 'max<sub>a\'</sub> <i>Q</i>(<i>s</i><sub>t+1</sub>,<i>a\'</i>)'
+    : '<i>Q</i>(<i>s</i><sub>t+1</sub>,<i>a</i><sub>t+1</sub>)';
+  const Qsa='<i>Q</i>(<i>s</i><sub>t</sub>,<i>a</i><sub>t</sub>)';
+  $("eqSym").innerHTML=
+    `<div><span class="term t-delta">δ<sub>t</sub></span> = ( <span class="term t-r"><i>r</i><sub>t+1</sub></span> + <span class="term t-g">γ</span> × <span class="term t-boot">${boot}</span> ) - <span class="term t-old">${Qsa}</span></div>`+
+    `<div><span class="term t-new">${Qsa}</span> &larr; <span class="term t-old">${Qsa}</span> + <span class="term t-a">α</span> × <span class="term t-delta">δ<sub>t</sub></span></div>`;
+  $("eqNote").innerHTML=off
+    ? `<b>Off-policy (Q-learning).</b> The bootstrap is max<sub>a'</sub> <i>Q</i>, the value of the <i>greedy</i> next action, so it learns <i>Q</i>* whatever the behaviour policy explores. <i>Q</i> &larr; <i>Q</i> + α δ is a stochastic fixed-point iteration toward the Bellman optimality operator, a γ-contraction in the sup-norm, so δ is driven to 0 once the Robbins-Monro step-size conditions hold.`
+    : `<b>On-policy (SARSA).</b> The bootstrap is <i>Q</i>(<i>s'</i>,<i>a'</i>) for the action actually taken next, so it evaluates the exploring policy itself. As exploration decays the target approaches the greedy backup. <i>Q</i> &larr; <i>Q</i> + α δ is the same stochastic fixed-point iteration, a γ-contraction in the sup-norm.`;
+}
+
+// Fill the rule with live numbers, pulse the terms that changed, update the legend + trace.
+function updateEqPanel(){
+  const t=lastTD;
+  if(!t){ $("eqNum").textContent="The equation will fill in with live values as it trains."; drawTDErr(); return; }
+  const r=t.r,g=t.gamma,boot=t.qNext,old=t.oldQ,a=t.alpha,d=t.delta,nw=t.newQ;
+  const target=r+g*boot, upd=a*d;
+  const eq=(cls,k,val,txt)=>{const ch=eqPrev[k]!==undefined&&Math.abs(eqPrev[k]-val)>1e-9;eqPrev[k]=val;
+    return `<span class="term ${cls}${ch?" pulse":""}">${txt}</span>`;};
+  $("eqNum").innerHTML=
+    `<div>δ = ( ${eq("t-r","r",r,fmt(r))} + <span class="t-g">${fnum(g)}</span> × ${eq("t-boot","b",boot,fnum(boot))} ) - ${eq("t-old","o",old,fnum(old))} = ${eq("t-delta","d",d,fmt(d))}</div>`+
+    `<div><i>Q</i>(<i>s</i>,<i>a</i>): ${fnum(old)} &larr; ${fnum(old)} + <span class="t-a">${fnum(a)}</span> × ${eq("t-delta","d2",d,fmt(d))} = ${eq("t-new","n",nw,fnum(nw))}</div>`;
+  const [cr,cc]=t.cell;
+  const bootName=t.algo==="sarsa"?"Q(s',a'), sampled next":"max Q(s',a), greedy next";
+  const rows=[
+    ["t-a","α","learning rate",fnum(a)],
+    ["t-g","γ","discount factor",fnum(g)],
+    ["t-r","r","reward this step",fmt(r)],
+    ["t-boot","bootstrap",bootName,fnum(boot)],
+    ["t-old","Q(s,a)","current estimate",fnum(old)],
+    ["t-new","y","TD target  r + γ × bootstrap",fnum(target)],
+    ["t-delta","δ","TD error  y - Q(s,a)",fmt(d)],
+    ["t-a","α×δ","update applied to Q",fmt(upd)],
+    ["t-old","(s, a)","state, action",`(${cr},${cc}), ${ARROW[t.a]}`],
+  ];
+  $("eqLegend").innerHTML=rows.map(([cls,sym,name,val])=>
+    `<tr><td><span class="sw sw-${cls}"></span><b>${sym}</b></td><td>${name}</td><td class="lv">${val}</td></tr>`).join("");
+  drawTDErr();
+}
+
+// Live trace of the TD error. It collapses to the zero line as the iteration converges.
+function drawTDErr(){
+  const cv=$("tderr"),x=cv.getContext("2d"),W=cv.width,H=cv.height,pad=12;
+  x.clearRect(0,0,W,H);
+  const data=tdHistory; let m=0.5; for(const v of data) if(Math.abs(v)>m) m=Math.abs(v);
+  const yz=H/2, yOf=v=>yz-(v/m)*(H/2-pad);
+  x.strokeStyle="#cdd8e4";x.lineWidth=1;x.beginPath();x.moveTo(0,yz);x.lineTo(W,yz);x.stroke();
+  if(data.length>1){ x.strokeStyle="#002147";x.lineWidth=1.3;x.beginPath();
+    for(let i=0;i<data.length;i++){const X=i/(data.length-1)*W,Y=yOf(data[i]);i?x.lineTo(X,Y):x.moveTo(X,Y);}
+    x.stroke(); }
+  if(data.length){const v=data[data.length-1];x.fillStyle=v>=0?"#16A34A":"#C0392B";
+    x.beginPath();x.arc(W-5,yOf(v),3,0,7);x.fill();}
+  let s=0;for(const v of data)s+=v*v;const rms=data.length?Math.sqrt(s/data.length):0;
+  $("tderrCap").textContent=`TD error δ per update. current ${fmt(data.length?data[data.length-1]:0)}, RMS ${rms.toFixed(3)} (goes to 0 at convergence)`;
 }
 function updateOptimal(){
   let pct="-",frac=0;
@@ -483,7 +573,7 @@ function announce(label){
 }
 let optTick=0;
 function refresh(){
-  drawGrid();drawHeat();drawRew();updateTD();
+  drawGrid();drawHeat();drawRew();updateEqPanel();
   if((optTick++ &7)===0) updateOptimal();      // optimal recompute is heavier; throttle
   if(mode==="showcase"){
     announce("OPTIMAL");
@@ -523,7 +613,7 @@ $("step").addEventListener("click",()=>{mode="train";doTrainStep();refresh();});
 // algorithm + grid segmented controls
 $("algoSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
   algorithm=b.dataset.algo;[...$("algoSeg").children].forEach(x=>x.classList.toggle("on",x===b));
-  resetLearning();refresh();});
+  resetLearning();renderEqSymbolic();refresh();});
 $("gridSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
   [...$("gridSeg").children].forEach(x=>x.classList.toggle("on",x===b));
   loadWorld(b.dataset.grid);sizeCanvases();recomputeOptimal();resetLearning();refresh();});
@@ -651,7 +741,7 @@ let currentGrid="default";
   // respect users who prefer reduced motion: start paused, let them opt in
   if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches){
     paused=true;$("play").textContent="Play";}
-  refresh();requestAnimationFrame(loop);
+  renderEqSymbolic();refresh();requestAnimationFrame(loop);
 })();
 </script>
 </body>
