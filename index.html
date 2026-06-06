@@ -145,7 +145,7 @@
     <div class="ctrl"><label for="slip">slip noise</label>
       <input id="slip" class="navy" type="range" min="0" max="0.5" step="0.01" value="0.00"/><span class="val" id="slipV">0.00</span></div>
     <div class="ctrl"><label for="speed">speed (steps/s)</label>
-      <input id="speed" class="green" type="range" min="1" max="120" step="1" value="8"/><span class="val" id="speedV">8</span></div>
+      <input id="speed" class="green" type="range" min="1" max="120" step="1" value="30"/><span class="val" id="speedV">30</span></div>
     <div class="chk"><input type="checkbox" id="decay" checked/><label for="decay">auto-decay ε each episode</label></div>
     <div class="chk"><input type="checkbox" id="showOpt" checked/><label for="showOpt">show optimal-path overlay</label></div>
 
@@ -303,6 +303,10 @@ let Q, s, episode, stepInEp, epReward, trail, rewardHist, lastSteps;
 let algorithm="qlearning", pendingAction=null;
 let mode="train", scPath=null, scIdx=0, scHold=0;
 let lastTD=null, flashCell=null, flashA=0;
+// Exploration is held here at full precision, not in the slider (whose 0.01 step
+// would freeze the decay). lock-on watches whether the greedy path has settled.
+let curEps=1.0, lastGreedySig="", stableCount=0;
+const EPS_DECAY=0.97, EPS_FLOOR=0.05, STABLE_NEEDED=5, LOCK_EPS=0.2;
 
 const rowMax=a=>{let m=a[0];for(let i=1;i<a.length;i++)if(a[i]>m)m=a[i];return m;};
 function argmaxRandom(a){const m=rowMax(a),t=[];for(let i=0;i<a.length;i++)if(a[i]===m)t.push(i);return t[(Math.random()*t.length)|0];}
@@ -329,6 +333,9 @@ function resetLearning(){
   trail=[curRC.slice()]; rewardHist=[]; lastSteps=null;
   pendingAction=null; mode="train"; scPath=null; scIdx=0; scHold=0;
   lastTD=null; flashCell=null;
+  lastGreedySig=""; stableCount=0;
+  // a fresh start explores fully again; sync the slider without firing its handler
+  curEps=1.0; settingEps=true; I.eps.value="1"; $("epsV").textContent="1.00"; settingEps=false;
 }
 
 function trainStep(alpha,gamma,epsilon){
@@ -362,7 +369,7 @@ function trainStep(alpha,gamma,epsilon){
 }
 
 function enterShowcase(path){ mode="showcase"; scPath=path; scIdx=0; scHold=0;
-  curRC=path[0].slice(); trail=[curRC.slice()]; }
+  curRC=path[0].slice(); trail=[curRC.slice()]; updateOptimal(); }
 function showcaseStep(){
   if(!scPath) return;
   if(scHold>0){ scHold--; if(scHold===0){scIdx=0;curRC=scPath[0].slice();trail=[curRC.slice()];} return; }
@@ -487,7 +494,7 @@ function refresh(){
     $("sLast").textContent=opt;$("sRew").textContent=(GOAL_REWARD+(opt-1)*STEP_PENALTY).toFixed(1);
     const p=$("sPhase");p.textContent="OPTIMAL";p.style.background=GREEN;return;
   }
-  const eps=parseFloat(I.eps.value),[ph,col]=phaseOf(eps);
+  const eps=curEps,[ph,col]=phaseOf(eps);
   announce(ph);
   $("cap").textContent=`${algorithm==="sarsa"?"SARSA":"Q-learning"}. Episode ${episode+1}, step ${stepInEp}. ${ph==="EXPLORING"?"Mostly random moves.":ph==="BALANCING"?"A mix of random and learned moves.":"Following what it learned."}`;
   $("cap").style.color=col;
@@ -506,7 +513,7 @@ bindVal(I.eps,$("epsV"),v=>v.toFixed(2));bindVal(I.slip,$("slipV"),v=>v.toFixed(
 bindVal(I.speed,$("speedV"),v=>String(v|0));
 
 let paused=false,settingEps=false;
-I.eps.addEventListener("input",()=>{if(!settingEps&&mode==="showcase"){mode="train";scPath=null;}});
+I.eps.addEventListener("input",()=>{if(!settingEps){curEps=parseFloat(I.eps.value);if(mode==="showcase"){mode="train";scPath=null;}}});
 [I.alpha,I.gamma,I.slip].forEach(inp=>inp.addEventListener("input",()=>{if(mode==="showcase"){mode="train";scPath=null;}}));
 
 $("play").addEventListener("click",()=>{paused=!paused;$("play").textContent=paused?"Play":"Pause";});
@@ -599,13 +606,21 @@ function hideTip(){$("tip").style.display="none";}
 // =====================================================================
 function doTrainStep(){
   slipProb=parseFloat(I.slip.value);
-  const ended=trainStep(parseFloat(I.alpha.value),parseFloat(I.gamma.value),parseFloat(I.eps.value));
+  const ended=trainStep(parseFloat(I.alpha.value),parseFloat(I.gamma.value),curEps);
   if(ended){
-    if($("decay").checked){settingEps=true;const ne=Math.max(0.05,parseFloat(I.eps.value)*0.995);
-      I.eps.value=ne.toFixed(2);$("epsV").textContent=ne.toFixed(2);settingEps=false;}
-    if(mode==="train"&&parseFloat(I.eps.value)<=0.07){
-      const path=greedyRollout();
-      if(path&&(path.length-1)<=optimalLen) enterShowcase(path);
+    if($("decay").checked){
+      curEps=Math.max(EPS_FLOOR,curEps*EPS_DECAY);     // full-precision decay (slider is only the display)
+      settingEps=true;I.eps.value=String(curEps);$("epsV").textContent=curEps.toFixed(2);settingEps=false;
+    }
+    // Lock on once the greedy path has stopped changing for a few episodes and
+    // exploration is no longer dominant. That is what "it found the path" means.
+    if(mode==="train"){
+      const gp=greedyRollout();
+      if(gp){
+        const sig=gp.map(p=>p[0]+"."+p[1]).join(";");
+        if(sig===lastGreedySig) stableCount++; else { stableCount=0; lastGreedySig=sig; }
+        if(stableCount>=STABLE_NEEDED && curEps<=LOCK_EPS) enterShowcase(gp);
+      } else { stableCount=0; lastGreedySig=""; }
     }
   }
 }
@@ -628,6 +643,7 @@ let currentGrid="default";
   loadWorld(p.get("grid")||"default");          // normalizes invalid input + sets currentGrid
   [...$("gridSeg").children].forEach(x=>x.classList.toggle("on",x.dataset.grid===currentGrid));
   sizeCanvases();recomputeOptimal();
+  resetLearning();                               // wipes Q and sets exploration to full
   const numOk=v=>v!==null&&v!==""&&isFinite(parseFloat(v));
   const set=(inp,v)=>{if(numOk(v)){inp.value=v;inp.dispatchEvent(new Event("input"));}};
   set(I.alpha,p.get("a"));set(I.gamma,p.get("g"));set(I.eps,p.get("e"));
@@ -635,7 +651,7 @@ let currentGrid="default";
   // respect users who prefer reduced motion: start paused, let them opt in
   if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches){
     paused=true;$("play").textContent="Play";}
-  resetLearning();refresh();requestAnimationFrame(loop);
+  refresh();requestAnimationFrame(loop);
 })();
 </script>
 </body>
